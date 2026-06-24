@@ -1,68 +1,18 @@
 import random
+
+import matplotlib.pyplot as plt
 import streamlit as st
 
-def get_range_for_difficulty(difficulty: str):
-    if difficulty == "Easy":
-        return 1, 20
-    if difficulty == "Normal":
-        return 1, 100
-    if difficulty == "Hard":
-        return 1, 50
-    return 1, 100
+from logic_utils import (
+    check_guess,
+    get_range_for_difficulty,
+    load_high_score,
+    parse_guess,
+    save_high_score,
+    update_score,
+)
 
-
-def parse_guess(raw: str):
-    if raw is None:
-        return False, None, "Enter a guess."
-
-    if raw == "":
-        return False, None, "Enter a guess."
-
-    try:
-        if "." in raw:
-            value = int(float(raw))
-        else:
-            value = int(raw)
-    except Exception:
-        return False, None, "That is not a number."
-
-    return True, value, None
-
-
-def check_guess(guess, secret):
-    if guess == secret:
-        return "Win", "🎉 Correct!"
-
-    try:
-        if guess > secret:
-            return "Too High", "📈 Go HIGHER!"
-        else:
-            return "Too Low", "📉 Go LOWER!"
-    except TypeError:
-        g = str(guess)
-        if g == secret:
-            return "Win", "🎉 Correct!"
-        if g > secret:
-            return "Too High", "📈 Go HIGHER!"
-        return "Too Low", "📉 Go LOWER!"
-
-
-def update_score(current_score: int, outcome: str, attempt_number: int):
-    if outcome == "Win":
-        points = 100 - 10 * (attempt_number + 1)
-        if points < 10:
-            points = 10
-        return current_score + points
-
-    if outcome == "Too High":
-        if attempt_number % 2 == 0:
-            return current_score + 5
-        return current_score - 5
-
-    if outcome == "Too Low":
-        return current_score - 5
-
-    return current_score
+HIGH_SCORE_FILE = "high_score.txt"
 
 st.set_page_config(page_title="Glitchy Guesser", page_icon="🎮")
 
@@ -89,11 +39,20 @@ low, high = get_range_for_difficulty(difficulty)
 st.sidebar.caption(f"Range: {low} to {high}")
 st.sidebar.caption(f"Attempts allowed: {attempt_limit}")
 
-if "secret" not in st.session_state:
-    st.session_state.secret = random.randint(low, high)
+# FEATURE: load persisted high score at startup
+if "high_score" not in st.session_state:
+    st.session_state.high_score = load_high_score(HIGH_SCORE_FILE)
 
+# FEATURE: display current high score in the sidebar
+st.sidebar.metric("High Score", st.session_state.high_score)
+
+if "secret" not in st.session_state or st.session_state.get("difficulty") != difficulty:
+    st.session_state.secret = random.randint(low, high)
+    st.session_state.difficulty = difficulty
+
+# FIX: Changed initial attempts from 1 to 0 so attempt counting is consistent with New Game reset
 if "attempts" not in st.session_state:
-    st.session_state.attempts = 1
+    st.session_state.attempts = 0
 
 if "score" not in st.session_state:
     st.session_state.score = 0
@@ -107,7 +66,7 @@ if "history" not in st.session_state:
 st.subheader("Make a guess")
 
 st.info(
-    f"Guess a number between 1 and 100. "
+    f"Guess a number between {low} and {high}. "
     f"Attempts left: {attempt_limit - st.session_state.attempts}"
 )
 
@@ -133,18 +92,16 @@ with col3:
 
 if new_game:
     st.session_state.attempts = 0
-    st.session_state.secret = random.randint(1, 100)
+    st.session_state.secret = random.randint(low, high)
+    st.session_state.score = 0
+    st.session_state.status = "playing"
+    st.session_state.history = []
     st.success("New game started.")
     st.rerun()
 
-if st.session_state.status != "playing":
-    if st.session_state.status == "won":
-        st.success("You already won. Start a new game to play again.")
-    else:
-        st.error("Game over. Start a new game to try again.")
-    st.stop()
+game_ended_on_submit = False
 
-if submit:
+if submit and st.session_state.status == "playing":
     st.session_state.attempts += 1
 
     ok, guess_int, err = parse_guess(raw_guess)
@@ -155,12 +112,15 @@ if submit:
     else:
         st.session_state.history.append(guess_int)
 
-        if st.session_state.attempts % 2 == 0:
-            secret = str(st.session_state.secret)
+        outcome = check_guess(guess_int, st.session_state.secret)
+        # FIX: hint messages were reversed — "Too High" now says go LOWER,
+        # and "Too Low" now says go HIGHER
+        if outcome == "Win":
+            message = "🎉 Correct!"
+        elif outcome == "Too High":
+            message = "📉 Go LOWER!"
         else:
-            secret = st.session_state.secret
-
-        outcome, message = check_guess(guess_int, secret)
+            message = "📈 Go HIGHER!"
 
         if show_hint:
             st.warning(message)
@@ -172,8 +132,14 @@ if submit:
         )
 
         if outcome == "Win":
+            # FEATURE: save a new high score when the player beats the record
+            if st.session_state.score > st.session_state.high_score:
+                st.session_state.high_score = st.session_state.score
+                save_high_score(HIGH_SCORE_FILE, st.session_state.score)
+
             st.balloons()
             st.session_state.status = "won"
+            game_ended_on_submit = True
             st.success(
                 f"You won! The secret was {st.session_state.secret}. "
                 f"Final score: {st.session_state.score}"
@@ -181,11 +147,40 @@ if submit:
         else:
             if st.session_state.attempts >= attempt_limit:
                 st.session_state.status = "lost"
+                game_ended_on_submit = True
                 st.error(
                     f"Out of attempts! "
                     f"The secret was {st.session_state.secret}. "
                     f"Score: {st.session_state.score}"
                 )
+
+# FEATURE: bar chart of valid guesses with a reference line at the secret number
+valid_guesses = [g for g in st.session_state.history if isinstance(g, int)]
+if valid_guesses:
+    st.sidebar.subheader("Guess History")
+    fig, ax = plt.subplots(figsize=(4, 3))
+    guess_numbers = list(range(1, len(valid_guesses) + 1))
+    ax.bar(guess_numbers, valid_guesses)
+    ax.axhline(
+        y=st.session_state.secret,
+        color="red",
+        linestyle="--",
+        linewidth=2,
+        label="Secret",
+    )
+    ax.set_xlabel("Guess #")
+    ax.set_ylabel("Guess Value")
+    ax.legend()
+    st.sidebar.pyplot(fig)
+    plt.close(fig)
+
+if st.session_state.status != "playing":
+    if not game_ended_on_submit:
+        if st.session_state.status == "won":
+            st.success("You already won. Start a new game to play again.")
+        else:
+            st.error("Game over. Start a new game to try again.")
+    st.stop()
 
 st.divider()
 st.caption("Built by an AI that claims this code is production-ready.")

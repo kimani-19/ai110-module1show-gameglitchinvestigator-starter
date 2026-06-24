@@ -1,0 +1,25 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.13, pytest-9.0.3, pluggy-1.6.0 -- /Library/Frameworks/Python.framework/Versions/3.13/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/kimani19/Documents/ai110-module1show-gameglitchinvestigator-starter
+plugins: anyio-4.13.0
+collecting ... collected 16 items
+
+tests/test_game_logic.py::test_winning_guess PASSED                      [  6%]
+tests/test_game_logic.py::test_guess_too_high PASSED                     [ 12%]
+tests/test_game_logic.py::test_guess_too_low PASSED                      [ 18%]
+tests/test_game_logic.py::test_check_guess_too_high PASSED               [ 25%]
+tests/test_game_logic.py::test_check_guess_too_low PASSED                [ 31%]
+tests/test_game_logic.py::test_check_guess_win PASSED                    [ 37%]
+tests/test_game_logic.py::test_update_score_win_first_attempt PASSED     [ 43%]
+tests/test_game_logic.py::test_update_score_win_second_attempt PASSED    [ 50%]
+tests/test_game_logic.py::test_parse_guess_not_a_number PASSED           [ 56%]
+tests/test_game_logic.py::test_parse_guess_empty PASSED                  [ 62%]
+tests/test_game_logic.py::test_parse_guess_valid PASSED                  [ 68%]
+tests/test_game_logic.py::test_load_high_score_missing_file PASSED       [ 75%]
+tests/test_game_logic.py::test_load_high_score_valid_file PASSED         [ 81%]
+tests/test_game_logic.py::test_load_high_score_invalid_content PASSED    [ 87%]
+tests/test_game_logic.py::test_save_high_score PASSED                    [ 93%]
+tests/test_game_logic.py::test_save_and_load_high_score PASSED           [100%]
+
+============================== 16 passed in 0.03s ==============================
