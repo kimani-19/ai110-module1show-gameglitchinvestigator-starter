@@ -2,6 +2,8 @@
 
 A Streamlit number-guessing game where you try to find a secret integer within a difficulty-based range. You get a limited number of attempts, hints after each guess, and a running score that rewards fast wins and penalizes wrong guesses. This version fixes several bugs that made the original AI-generated build frustrating or impossible to play fairly.
 
+![Game Glitch Investigator screenshot](assets/game-screenshot.png)
+
 ## Demo Walkthrough
 
 Sample game on **Normal** difficulty (range 1–100, 8 attempts). The secret number is 73.
